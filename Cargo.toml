@@ -1,0 +1,29 @@
+[package]
+name = "user-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+axum = "0.8.1"
+log = "0.4.22"
+
+[dependencies.dixxxie]
+version = "*"
+git="https://github.com/serenitymcru/dixxxie"
+
+[dependencies.tokio]
+version = "1.42.0"
+features = ["full"]
+
+[dependencies.chrono]
+version = "0.4.39"
+features = ["serde"]
+
+[dependencies.diesel]
+version = "2.2.0"
+features = ["postgres", "r2d2", "chrono"]
+
+[dependencies.serde]
+version = "1.0.217"
+features = ["derive"]
