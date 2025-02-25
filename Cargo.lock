@@ -12,6 +12,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "adjust"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ffd42c4ddb46c90bf24add484471bd9904e8f371fd2de869827ef98cc29cbdf"
+dependencies = [
+ "adjust_macro",
+ "anyhow",
+ "axum",
+ "diesel",
+ "dotenv",
+ "env_logger",
+ "log",
+ "redis",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "adjust_macro"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e75714364d5bacb7250db5888b22930640776053b9807b2c6de252ba6c41f08c"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -346,21 +374,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "dixxxie"
-version = "0.1.13"
-source = "git+https://github.com/serenitymcru/dixxxie#56487bcda15c6e1819258be3497df9948c48537b"
-dependencies = [
- "anyhow",
- "axum",
- "diesel",
- "dotenv",
- "env_logger",
- "r2d2",
- "redis",
- "serde",
 ]
 
 [[package]]
@@ -773,9 +786,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.22"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+checksum = "30bde2b3dc3671ae49d8e2e9f044c7c005836e7a023ee57cffa25ab82764bb9e"
 
 [[package]]
 name = "matchit"
@@ -1169,9 +1182,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.42.0"
+version = "1.43.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cec9b21b0450273377fc97bd4c33a8acffc8c996c987a7c5b319a0083707551"
+checksum = "3d61fa4ffa3de412bfea335c6ecff681de2b609ba3c77ef3e00e521813a9ed9e"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1187,9 +1200,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "693d596312e88961bc67d7f1f97af8a70227d9f90c31bba5806eec004978d752"
+checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1263,13 +1276,13 @@ dependencies = [
 
 [[package]]
 name = "user-service"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
+ "adjust",
  "anyhow",
  "axum",
  "chrono",
  "diesel",
- "dixxxie",
  "log",
  "serde",
  "tokio",

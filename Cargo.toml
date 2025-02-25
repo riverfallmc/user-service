@@ -1,16 +1,13 @@
 [package]
 name = "user-service"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
+adjust = "0.1.24"
 anyhow = "1.0.95"
 axum = "0.8.1"
 log = "0.4.22"
-
-[dependencies.dixxxie]
-version = "*"
-git="https://github.com/serenitymcru/dixxxie"
 
 [dependencies.tokio]
 version = "1.42.0"

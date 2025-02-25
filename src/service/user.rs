@@ -1,59 +1,57 @@
+use adjust::{database::{postgres::Postgres, Database}, response::HttpResult};
 use crate::{models::{User, UserCreate, UserUpdate}, repository::user::UserRepository};
-use dixxxie::{connection::DbPool, response::HttpResult};
 
 pub struct UserService;
 
 impl UserService {
   /// Добавляет игрока в базу данных
   pub async fn add_user(
-    db: &DbPool,
+    db: &mut Database<Postgres>,
     user: UserCreate
   ) -> HttpResult<usize> {
-    let mut db = db.get()?;
-
-    UserRepository::add_user(&mut db, user)
+    UserRepository::add_user(db, user)
       .await
   }
 
   pub async fn get_user(
-    db: &DbPool,
+    db: &mut Database<Postgres>,
     id: i32
   ) -> HttpResult<User> {
-    let mut db = db.get()?;
+    UserRepository::get_user(db, id)
+      .await
+  }
 
-    UserRepository::get_user(&mut db, id)
+  pub async fn get_by_email(
+    db: &mut Database<Postgres>,
+    email: String
+  ) -> HttpResult<User> {
+    UserRepository::find_by_email(db, email)
       .await
   }
 
   pub async fn get_users(
-    db: &DbPool,
+    db: &mut Database<Postgres>,
     limit: u8,
     offset: u32
   ) -> HttpResult<Vec<User>> {
-    let mut db = db.get()?;
-
-    UserRepository::get_users(&mut db, limit.min(25), offset)
+    UserRepository::get_users(db, limit.min(25), offset)
       .await
   }
 
   pub async fn patch_user(
-    db: &DbPool,
+    db: &mut Database<Postgres>,
     id: i32,
     user: UserUpdate
   ) -> HttpResult<usize> {
-    let mut db = db.get()?;
-
-    UserRepository::patch_user(&mut db, id, user)
+    UserRepository::patch_user(db, id, user)
       .await
   }
 
   pub async fn delete_user(
-    db: &DbPool,
+    db: &mut Database<Postgres>,
     id: i32,
   ) -> HttpResult<usize> {
-    let mut db = db.get()?;
-
-    UserRepository::delete_user(&mut db, id)
+    UserRepository::delete_user(db, id)
       .await
   }
 }

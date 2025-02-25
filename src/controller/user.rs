@@ -1,11 +1,7 @@
-use crate::{models::{User, UserCreate, UserUpdate}, service::user::UserService};
-use axum::{extract::{Query, State}, routing::{delete, get, patch, post}};
-use dixxxie::{
-  axum::{self, extract::Path, Json}, connection::DbPool, controller::Controller, response::{HttpMessage, HttpResult}
-};
+use adjust::{controller::Controller, response::{HttpMessage, HttpResult}};
 use serde::Deserialize;
-
-pub struct UserController;
+use crate::{models::{User, UserCreate, UserUpdate}, service::user::UserService, AppState};
+use axum::{extract::{Path, Query, State}, routing::{delete, get, patch, post}, Json};
 
 #[derive(Deserialize)]
 pub struct GetUsersQuery {
@@ -13,58 +9,85 @@ pub struct GetUsersQuery {
   offset: Option<u32>
 }
 
+#[derive(Deserialize)]
+pub struct UsersQuery {
+  email: Option<String>
+}
+
+pub struct UserController;
+
 impl UserController {
   pub async fn get_user(
     Path(id): Path<i32>,
-    State(pool): State<DbPool>
-  ) -> HttpResult<Json<User>> {
-    Ok(Json(UserService::get_user(&pool, id)
-      .await?))
+    Query(query): Query<UsersQuery>,
+    State(state): State<AppState>,
+  ) -> HttpResult<User> {
+    let mut db = state.postgres.get()?;
+
+    if let Some(email) = query.email {
+      return UserService::get_by_email(&mut db, email).await;
+    }
+
+    UserService::get_user(&mut db, id)
+      .await
   }
 
   pub async fn get_users(
     Query(query): Query<GetUsersQuery>,
-    State(pool): State<DbPool>
-  ) -> HttpResult<Json<Vec<User>>> {
-    Ok(Json(UserService::get_users(&pool, query.limit.unwrap_or_default(), query.offset.unwrap_or_default())
-      .await?))
+    State(state): State<AppState>
+  ) -> HttpResult<Vec<User>> {
+    let mut db = state.postgres.get()?;
+
+    UserService::get_users(&mut db, query.limit.unwrap_or_default(), query.offset.unwrap_or_default())
+      .await
   }
 
   pub async fn add_user(
-    State(pool): State<DbPool>,
+    State(state): State<AppState>,
     Json(body): Json<UserCreate>,
-  ) -> HttpResult<Json<dixxxie::response::HttpMessage>> {
-    let id = UserService::add_user(&pool, body.clone())
+  ) -> HttpResult<HttpMessage> {
+    let mut db = state.postgres.get()?;
+
+    let id = UserService::add_user(&mut db, body.clone())
       .await?;
 
-    Ok(Json(HttpMessage::new(&format!("User {} has been created with Id {}", body.username, id))))
+    Ok(Json(HttpMessage::new(&format!("User {} has been created with Id {}", body.username, id.0))))
 
   }
 
   pub async fn patch_user(
-    State(pool): State<DbPool>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(user): Json<UserUpdate>,
-  ) -> HttpResult<Json<HttpMessage>> {
-    UserService::patch_user(&pool, id, user)
+  ) -> HttpResult<HttpMessage> {
+    let mut db = state.postgres.get()?;
+
+    #[allow(unused)]
+    UserService::patch_user(&mut db, id, user)
       .await?;
 
     Ok(Json(HttpMessage::new(&format!("User with Id {id} has been updated"))))
   }
 
   pub async fn delete_user(
-    State(pool): State<DbPool>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
-  ) -> HttpResult<Json<HttpMessage>> {
-    UserService::delete_user(&pool, id)
+  ) -> HttpResult<HttpMessage> {
+    let mut db = state.postgres.get()?;
+
+    #[allow(unused)]
+    UserService::delete_user(&mut db, id)
       .await?;
 
     Ok(Json(HttpMessage::new(&format!("User with Id {id} has been deleted"))))
   }
 }
 
-impl Controller<DbPool> for UserController {
-  fn register(&self, router: axum::Router<DbPool>) -> axum::Router<DbPool> {
+impl Controller<AppState> for UserController {
+  fn new() -> anyhow::Result<Box<Self>> {
+    Ok(Box::new(Self))
+  }
+  fn register(&self, router: axum::Router<AppState>) -> axum::Router<AppState> {
     router
       .route("/user/{id}", get(UserController::get_user))
       .route("/users", get(UserController::get_users))

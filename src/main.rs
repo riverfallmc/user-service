@@ -1,7 +1,5 @@
-use dixxxie::{
-  axum::{self, Router}, connection::establish_connection, controller::ApplyControllerOnRouter, setup
-};
-use anyhow::Result;
+use std::sync::Arc;
+use adjust::{controllers, controller::Controller, database::{postgres::Postgres, Pool}, main, service::Service};
 use controller::user::UserController;
 
 mod repository;
@@ -10,16 +8,18 @@ mod service;
 mod models;
 mod schema;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-  setup()?;
+#[derive(Default, Clone)]
+struct AppState {
+  postgres: Arc<Pool<Postgres>>
+}
 
-  let router = Router::new()
-    .apply_controller(UserController)
-    .with_state(establish_connection()?);
 
-  let listener = tokio::net::TcpListener::bind("0.0.0.0:80")
-    .await?;
-
-  Ok(axum::serve(listener, router).await?)
+#[main]
+async fn main() -> Service<'_, AppState> {
+  Service {
+    name: "User",
+    state: AppState::default(),
+    controllers: controllers![UserController],
+    ..Default::default()
+  }
 }
