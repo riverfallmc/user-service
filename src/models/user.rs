@@ -1,6 +1,7 @@
 use diesel::prelude::*;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::schema::users;
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Clone)]
@@ -13,6 +14,8 @@ pub struct User {
   pub username: String,
   #[diesel(sql_type = Text)]
   pub email: String,
+  #[diesel(sql_type = Jsonb)]
+  pub friends: Value,
   #[diesel(sql_type = Text)]
   pub rank: String,
   #[diesel(sql_type = Timestamp)]

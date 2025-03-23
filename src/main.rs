@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use adjust::{controllers, controller::Controller, database::{postgres::Postgres, Pool}, main, service::Service};
-use controller::user::UserController;
+use controller::{friends::FriendsController, privacy::PrivacyController, status::StatusController, user::UserController};
 
 mod repository;
 mod controller;
@@ -10,16 +10,17 @@ mod schema;
 
 #[derive(Default, Clone)]
 struct AppState {
-  postgres: Arc<Pool<Postgres>>
+  postgres: Arc<Pool<Postgres>>,
 }
-
 
 #[main]
 async fn main() -> Service<'_, AppState> {
+  adjust::server::WebServer::enviroment();
   Service {
     name: "User",
     state: AppState::default(),
-    controllers: controllers![UserController],
+    controllers: controllers![UserController, FriendsController, PrivacyController, StatusController],
+    port: Some(1400),
     ..Default::default()
   }
 }

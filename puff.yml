@@ -45,6 +45,11 @@ tasks:
     commands:
       - cargo test -- --nocapture
 
+  dev:
+    description: Buildes service relative to file changes
+    commands:
+      - cargo watch -x 'run'
+
   # хз кому это может понадобиться
   run:
     commands:
