@@ -6,11 +6,14 @@
 //  2. Присядьте
 //  3. Выньте любую еду из полости рта
 
-use adjust::{database::{postgres::Postgres, Database}, response::{HttpError, NonJsonHttpResult}};
+// почему сука в репозитории wss ивенты отправляются??
+
+use adjust::{database::{postgres::Postgres, redis::Redis, Database}, response::{HttpError, NonJsonHttpResult}};
+use anyhow::anyhow;
 use axum::http::StatusCode;
 use diesel::{delete, insert_into, update, BoolExpressionMethods, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use serde_json::json;
-use crate::{models::friends::{Friendship, Relationship}, schema::{friendships, users}};
+use serde_json::{json, Value};
+use crate::{models::{friends::{Friendship, Relationship}, user::UserIdQuery, userprofile::UserProfile}, schema::{friendships, users}, service::{userprofile::UserProfileService, wss::WssService}};
 
 pub struct FriendsRepository;
 
@@ -18,6 +21,7 @@ impl FriendsRepository {
   /// Кидает запрос в друзья игроку
   pub fn add(
     db: &mut Database<Postgres>,
+    redis: &mut Database<Redis>,
     user_id: i32,
     friend_id: i32
   ) -> NonJsonHttpResult<Friendship> {
@@ -42,16 +46,31 @@ impl FriendsRepository {
       .get_result::<Friendship>(db)
       .map_err(|e| HttpError(anyhow::anyhow!("Не получилось добавить игрока в друзья: {e}"), None))?;
 
+    #[allow(unused)]
+    WssService::send(
+      user_id,
+      "FRIEND_REQUEST",
+      UserProfileService::get_user_profile(db, redis, None, friend_id)?
+    );
+
+    #[allow(unused)]
+    WssService::send(
+      friend_id,
+      "FRIEND_REQUEST",
+      UserProfileService::get_user_profile(db, redis, None, user_id)?
+    );
+
     Ok(result)
   }
 
   /// Принимает запрос в друзья
   pub fn accept(
     db: &mut Database<Postgres>,
+    redis: &mut Database<Redis>,
     user_id: i32, // кто кинул запрос
     friend_id: i32, // кому идет запрос в друзья
   ) -> NonJsonHttpResult<Friendship> {
-    db.transaction(|db| {
+    let result = db.transaction(|db| {
       let friendship = update(friendships::table)
         .filter(
           friendships::user_id.eq(user_id)
@@ -73,7 +92,23 @@ impl FriendsRepository {
       }
 
       Ok(friendship)
-    })
+    });
+
+    #[allow(unused)]
+    WssService::send(
+      user_id,
+      "FRIEND_ADD",
+      UserProfileService::get_user_profile(db, redis, None, friend_id)?
+    );
+
+    #[allow(unused)]
+    WssService::send(
+      friend_id,
+      "FRIEND_ADD",
+      UserProfileService::get_user_profile(db, redis, None, user_id)?
+    );
+
+    result
   }
 
   /// Проверяет, в друзьях ли друг у друга игроки
@@ -100,11 +135,12 @@ impl FriendsRepository {
     Ok(exists)
   }
 
-  /// Получает список друзей
+  /// Возвращает список друзей в виде массива айдишников
   pub fn get_friend_list(
     db: &mut Database<Postgres>,
+    redis: &mut Database<Redis>,
     user_id: i32
-  ) -> NonJsonHttpResult<Vec<i32>> {
+  ) -> NonJsonHttpResult<Vec<UserProfile>> {
     let friends_json: serde_json::Value = users::table
     .filter(users::id.eq(user_id))
     .select(users::friends)
@@ -119,7 +155,52 @@ impl FriendsRepository {
       _ => vec![],
     };
 
-  Ok(friends)
+    let mut result: Vec<UserProfile> = vec![];
+
+    friends.into_iter().try_for_each(|id| {
+      result.push(UserProfileService::get_user_profile(
+        db,
+        redis,
+        Some(UserIdQuery { user_id: Some(user_id) }),
+        id
+      )?);
+      Ok::<(), HttpError>(())
+    })?;
+
+    Ok(result)
+  }
+
+  #[allow(unused)]
+  pub fn get_friend_ids(
+    db: &mut Database<Postgres>,
+    user_id: i32,
+  ) -> NonJsonHttpResult<Vec<i32>> {
+    let records = users::table
+      .filter(users::id.eq(user_id))
+      .select(users::friends)
+      .get_result::<Value>(db)?;
+
+    let mut result = vec![];
+
+    if let Some(friends) = records.as_array() {
+      friends.iter()
+        .for_each(|id| result.push(id.as_str().unwrap_or("0").parse().unwrap_or_default()));
+    }
+
+    Ok(result)
+  }
+
+  /// Возвращает список друзей
+  pub fn get_friendship_list(
+    db: &mut Database<Postgres>,
+    user_id: i32
+  ) -> NonJsonHttpResult<Vec<Friendship>> {
+    let results = friendships::table
+      .filter(friendships::user_id.eq(user_id).or(friendships::friend_id.eq(user_id)))
+      .get_results::<Friendship>(db)
+      .map_err(|_| anyhow!("Друзья не были найдены"))?;
+
+    Ok(results)
   }
 
   /// Отменяет запрос в друзья
@@ -132,6 +213,25 @@ impl FriendsRepository {
       .filter(friendships::user_id.eq(user_id).and(friendships::friend_id.eq(friend_id)))
       .execute(db)
       .map_err(|_| HttpError::new("Ошибка при отмене запроса в друзья", None))?;
+
+    #[allow(unused)]
+    WssService::send(
+      user_id,
+      "FRIEND_CANCEL",
+      json!({
+        "id": friend_id
+      })
+    );
+
+    #[allow(unused)]
+    WssService::send(
+      friend_id,
+      "FRIEND_CANCEL",
+      json!({
+        "id": user_id
+      })
+    );
+
     Ok(())
   }
 
@@ -141,7 +241,7 @@ impl FriendsRepository {
     user_id: i32,
     friend_id: i32
   ) -> NonJsonHttpResult<()> {
-    db.transaction(|db| {
+    let result = db.transaction(|db| {
       delete(friendships::table)
         .filter(
           friendships::user_id.eq(user_id).and(friendships::friend_id.eq(friend_id))
@@ -151,16 +251,36 @@ impl FriendsRepository {
         .map_err(|_| HttpError::new("Ошибка при удалении из друзей", None))?;
 
       for &id in &[user_id, friend_id] {
-        let friend_list = if id == user_id { friend_id } else { user_id };
+        let friend = if id == user_id { friend_id } else { user_id };
         update(users::table.filter(users::id.eq(id)))
           .set(users::friends.eq(diesel::dsl::sql::<diesel::sql_types::Jsonb>(&format!(
             "friends - '{}'",
-            json!(friend_list)
+            json!(friend)
           ))))
           .execute(db)?;
+
+        // #[allow(unused)]
       }
 
       Ok(())
-    })
+    });
+
+    WssService::send(
+      user_id,
+      "FRIEND_REMOVE",
+      json!({
+        "id": friend_id
+      })
+    )?;
+
+    WssService::send(
+      friend_id,
+      "FRIEND_REMOVE",
+      json!({
+        "id": user_id
+      })
+    )?;
+
+    result
   }
 }

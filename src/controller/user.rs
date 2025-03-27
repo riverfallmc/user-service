@@ -1,6 +1,6 @@
-use crate::{models::user::{User, UserCreate, UserUpdate}, repository::user::UserRepository, AppState};
-use axum::{extract::{Path, Query, State}, http::StatusCode, routing::{delete, get, patch, post}, Json};
-use adjust::{controller::Controller, response::{HttpError, HttpMessage, HttpResult}};
+use crate::{models::{user::{User, UserCreate, UserIdQuery, UserUpdate}, userprofile::UserProfile}, repository::user::UserRepository, service::userprofile::UserProfileService, AppState};
+use axum::{extract::{Path, Query, State}, routing::{delete, get, patch, post}, Json};
+use adjust::{controller::Controller, response::{HttpMessage, HttpResult}};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -18,21 +18,28 @@ pub struct UserController;
 
 impl UserController {
   pub async fn get_user(
-    Path(id): Path<Option<i32>>,
+    Path(id): Path<i32>,
     Query(query): Query<UsersQuery>,
     State(state): State<AppState>,
   ) -> HttpResult<User> {
     let mut db = state.postgres.get()?;
 
     if let Some(email) = query.email {
-      return Ok(Json(UserRepository::find_by_email(&mut db, email).await?));
+      return Ok(Json(UserRepository::find_by_email(&mut db, email)?));
     }
 
-    if let Some(id) = id {
-      return Ok(Json(UserRepository::get_user(&mut db, id).await?))
-    }
+    Ok(Json(UserRepository::get_user(&mut db, id)?))
+  }
 
-    Err(HttpError::new("Вы не указали Id", Some(StatusCode::BAD_REQUEST)))
+  pub async fn get_user_profile(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    Query(query): Query<UserIdQuery>
+  ) -> HttpResult<UserProfile> {
+    let mut db = state.postgres.get()?;
+    let mut redis = state.redis.get()?;
+
+    Ok(Json(UserProfileService::get_user_profile(&mut db, &mut redis, Some(query), id)?))
   }
 
   pub async fn get_users(
@@ -40,8 +47,7 @@ impl UserController {
     State(state): State<AppState>
   ) -> HttpResult<Vec<User>> {
     let mut db = state.postgres.get()?;
-    let result = UserRepository::get_users(&mut db, query.limit.unwrap_or(5), query.offset.unwrap_or_default())
-      .await?;
+    let result = UserRepository::get_users(&mut db, query.limit.unwrap_or(5), query.offset.unwrap_or_default())?;
 
     Ok(Json(result))
   }
@@ -52,8 +58,7 @@ impl UserController {
   ) -> HttpResult<User> {
     let mut db = state.postgres.get()?;
 
-    let user = UserRepository::add_user(&mut db, body.clone())
-      .await?;
+    let user = UserRepository::add_user(&mut db, body.clone())?;
 
     Ok(Json(user))
   }
@@ -64,8 +69,7 @@ impl UserController {
     Json(user): Json<UserUpdate>,
   ) -> HttpResult<User> {
     let mut db = state.postgres.get()?;
-    let result = UserRepository::patch_user(&mut db, id, user)
-      .await?;
+    let result = UserRepository::patch_user(&mut db, id, user)?;
 
     Ok(Json(result))
   }
@@ -76,10 +80,9 @@ impl UserController {
   ) -> HttpResult<HttpMessage> {
     let mut db = state.postgres.get()?;
 
-    UserRepository::delete_user(&mut db, id)
-      .await?;
+    UserRepository::delete_user(&mut db, id)?;
 
-    Ok(Json(HttpMessage::new(&format!("User has been deleted"))))
+    Ok(Json(HttpMessage::new("Пользователь был удалён")))
   }
 }
 
@@ -90,10 +93,11 @@ impl Controller<AppState> for UserController {
 
   fn register(&self, router: axum::Router<AppState>) -> axum::Router<AppState> {
     router
-      .route("/user/{id}", get(UserController::get_user))
-      .route("/users", get(UserController::get_users))
-      .route("/user", post(UserController::add_user))
-      .route("/user/{id}", patch(UserController::patch_user))
-      .route("/user/{id}", delete(UserController::delete_user))
+      .route("/user/{id}", get(Self::get_user))
+      .route("/profile/{id}", get(Self::get_user_profile))
+      .route("/users", get(Self::get_users))
+      .route("/user", post(Self::add_user))
+      .route("/user/{id}", patch(Self::patch_user))
+      .route("/user/{id}", delete(Self::delete_user))
   }
 }

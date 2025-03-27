@@ -46,10 +46,17 @@ impl PrivacyRepository {
   }
 
   // бля какие же макросы удобные я того рот ебал
+
+  // Кто может видеть профиль
   add_privacy_getter!(profile_visibility);
+  // todo Кто может видеть друзей
   add_privacy_getter!(friends_visibility);
+  // todo Кто может приглашать на сервер
   add_privacy_getter!(can_invite);
+  // todo Кто может видеть на каком сервере играет пользователь
   add_privacy_getter!(server_visibility);
+  // todo Кто может видеть в сети ли человек или нет
   add_privacy_getter!(online_visibility);
+  // todo Кто может видеть сколько часов наиграл человек
   add_privacy_getter!(hours_visibility);
 }

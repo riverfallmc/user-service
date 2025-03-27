@@ -4,6 +4,7 @@ CREATE TABLE users (
   email TEXT NOT NULL UNIQUE,
   friends JSONB NOT NULL DEFAULT '[]'::jsonb,
   rank TEXT NOT NULL DEFAULT 'user',
+  last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
   registered_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

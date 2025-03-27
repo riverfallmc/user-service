@@ -19,6 +19,8 @@ pub struct User {
   #[diesel(sql_type = Text)]
   pub rank: String,
   #[diesel(sql_type = Timestamp)]
+  pub last_seen_at: NaiveDateTime,
+  #[diesel(sql_type = Timestamp)]
   pub registered_at: NaiveDateTime
 }
 
@@ -36,4 +38,9 @@ pub struct UserUpdate {
   pub username: Option<String>,
   pub email: Option<String>,
   pub rank: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserIdQuery {
+  pub user_id: Option<i32>
 }

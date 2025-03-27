@@ -29,6 +29,7 @@ diesel::table! {
         email -> Text,
         friends -> Jsonb,
         rank -> Text,
+        last_seen_at -> Timestamp,
         registered_at -> Timestamp,
     }
 }

@@ -1,16 +1,11 @@
-use adjust::{controller::Controller, response::{HttpError, HttpMessage, HttpResult}};
-use axum::{extract::{Path, Query, State}, http::StatusCode, routing::{delete, get, post}, Json, Router};
 use serde::{Deserialize, Serialize};
-use crate::{models::{friends::Friendship, privacy::Visibility}, repository::{friends::FriendsRepository, privacy::PrivacyRepository}, AppState};
+use adjust::{controller::Controller, response::{HttpMessage, HttpResult}};
+use axum::{extract::{Path, Query, State}, routing::{delete, get, post}, Json, Router};
+use crate::{models::{friends::Friendship, user::UserIdQuery, userprofile::UserProfile}, repository::friends::FriendsRepository, service::privacy::PrivacyService, AppState};
 
 #[derive(Serialize, Deserialize)]
 struct UserIdBody {
   user_id: i32
-}
-
-#[derive(Serialize, Deserialize)]
-struct UserIdQuery {
-  user_id: Option<i32>
 }
 
 pub struct FriendsController;
@@ -26,21 +21,25 @@ impl FriendsController {
     State(state): State<AppState>,
     Path(user_id): Path<i32>,
     Query(query): Query<UserIdQuery>
-  ) -> HttpResult<Vec<i32>> {
+  ) -> HttpResult<Vec<UserProfile>> {
     let mut db = state.postgres.get()?;
-    let privacy = PrivacyRepository::get_friends_visibility(&mut db, user_id)?;
+    let mut redis = state.redis.get()?;
 
-    let has_rights = match query.user_id {
-      Some(requester) if requester == user_id => true,
-      Some(requester) => FriendsRepository::is_friends(&mut db, user_id, requester)?,
-      None => privacy == Visibility::Open,
-    };
+    PrivacyService::check_friends_visibility(&mut db, query, user_id)?;
 
-    if !has_rights {
-      return Err(HttpError::new("Пользователь скрыл список друзей", Some(StatusCode::FORBIDDEN)));
-    }
+    Ok(Json(FriendsRepository::get_friend_list(&mut db, &mut redis, user_id)?))
+  }
 
-    Ok(Json(FriendsRepository::get_friend_list(&mut db, user_id)?))
+  async fn get_friendship_list(
+    State(state): State<AppState>,
+    Path(user_id): Path<i32>,
+    Query(query): Query<UserIdQuery>
+  ) -> HttpResult<Vec<Friendship>> {
+    let mut db = state.postgres.get()?;
+
+    PrivacyService::check_friends_visibility(&mut db, query, user_id)?;
+
+    Ok(Json(FriendsRepository::get_friendship_list(&mut db, user_id)?))
   }
 
   /// Отправляет пользователю запрос в друзья
@@ -50,8 +49,9 @@ impl FriendsController {
     Json(body): Json<UserIdBody>
   ) -> HttpResult<Friendship> {
     let mut db = state.postgres.get()?;
+    let mut redis = state.redis.get()?;
 
-    Ok(Json(FriendsRepository::add(&mut db, user_id, body.user_id)?))
+    Ok(Json(FriendsRepository::add(&mut db, &mut redis, user_id, body.user_id)?))
   }
 
   /// Пользователь принимает запрос в друзья
@@ -61,8 +61,9 @@ impl FriendsController {
     Json(body): Json<UserIdBody> // owner
   ) -> HttpResult<Friendship> {
     let mut db = state.postgres.get()?;
+    let mut redis = state.redis.get()?;
 
-    Ok(Json(FriendsRepository::accept(&mut db, user_id, body.user_id)?))
+    Ok(Json(FriendsRepository::accept(&mut db, &mut redis, user_id, body.user_id)?))
   }
 
   /// Пользователь отменяет/отклоняет запрос в друзья
@@ -102,6 +103,7 @@ impl Controller<AppState> for FriendsController {
       Router::new()
         .route("/confirm/{id}", post(Self::confirm))
         .route("/cancel/{id}", post(Self::cancel))
+        .route("/friends/{id}", get(Self::get_friendship_list))
         .route("/{id}", get(Self::get_friend_list))
         .route("/{id}", post(Self::add))
         .route("/{id}", delete(Self::remove))
