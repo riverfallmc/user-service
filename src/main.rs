@@ -22,7 +22,6 @@ async fn main() -> Service<'_, AppState> {
     name: "User",
     state: AppState::default(),
     controllers: controllers![UserController, FriendsController, PrivacyController, StatusController],
-    port: Some(1400),
     ..Default::default()
   }
 }
