@@ -1,7 +1,8 @@
+use adjust::{database::{postgres::Postgres, Database}, response::NonJsonHttpResult};
 use diesel::prelude::*;
 use diesel_derive_enum::DbEnum;
 use serde::{Deserialize, Serialize};
-use crate::schema::users_privacy;
+use crate::{repository::friends::FriendsRepository, schema::users_privacy};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, DbEnum)]
 #[ExistingTypePath = "crate::schema::sql_types::VisibilityEnum"]
@@ -12,6 +13,18 @@ pub enum Visibility {
   FriendOnly,
   #[db_rename = "hidden"]
   Hidden,
+}
+
+impl Visibility {
+  pub fn can_interact(&self, db: &mut Database<Postgres>, subject_id: i32, actor_id: i32) -> NonJsonHttpResult<bool> {
+    let result = match self {
+      Visibility::Open => true,
+      Visibility::FriendOnly => FriendsRepository::is_friends(db, subject_id, actor_id)?,
+      Visibility::Hidden => false
+    };
+
+    Ok(result)
+  }
 }
 
 impl Default for Visibility {

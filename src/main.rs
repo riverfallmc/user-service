@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use adjust::{controller::Controller, controllers, database::{postgres::Postgres, redis::Redis, Pool}, main, service::Service};
-use controller::{friends::FriendsController, invite::InviteController, privacy::PrivacyController, status::StatusController, user::UserController};
+use controller::{friends::FriendsController, privacy::PrivacyController, status::StatusController, user::UserController};
 
 mod repository;
 mod controller;
@@ -21,7 +21,8 @@ async fn main() -> Service<'_, AppState> {
   Service {
     name: "User",
     state: AppState::default(),
-    controllers: controllers![UserController, InviteController, FriendsController, PrivacyController, StatusController],
+    controllers: controllers![UserController, FriendsController, PrivacyController, StatusController],
+    port: Some(1400),
     ..Default::default()
   }
 }

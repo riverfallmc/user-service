@@ -1,11 +1,17 @@
 use serde::{Deserialize, Serialize};
-use adjust::{controller::Controller, response::{HttpMessage, HttpResult}};
+use adjust::{controller::Controller, response::{HttpMessage, HttpResult, NonJsonHttpResult}};
 use axum::{extract::{Path, Query, State}, routing::{delete, get, post}, Json, Router};
-use crate::{models::{friends::Friendship, user::UserIdQuery, userprofile::UserProfile}, repository::friends::FriendsRepository, service::privacy::PrivacyService, AppState};
+use serde_json::Value;
+use crate::{models::{friends::Friendship, user::UserIdQuery, userprofile::UserProfile}, repository::friends::FriendsRepository, service::{friend::{FriendEvents, FriendService}, privacy::PrivacyService}, AppState};
 
 #[derive(Serialize, Deserialize)]
 struct UserIdBody {
   user_id: i32
+}
+
+#[derive(Deserialize)]
+struct EventTypeQuery {
+  r#type: FriendEvents
 }
 
 pub struct FriendsController;
@@ -40,6 +46,19 @@ impl FriendsController {
     PrivacyService::check_friends_visibility(&mut db, query, user_id)?;
 
     Ok(Json(FriendsRepository::get_friendship_list(&mut db, user_id)?))
+  }
+
+  // внутренний метод
+  /// Отправляем ивент всем друзьям
+  async fn send_event(
+    State(state): State<AppState>,
+    Path(user_id): Path<i32>,
+    Query(query): Query<EventTypeQuery>,
+    Json(body): Json<Value>
+  ) -> NonJsonHttpResult<()> {
+    let mut db = state.postgres.get()?;
+
+    FriendService::send_event(&mut db, user_id, query.r#type, body)
   }
 
   /// Отправляет пользователю запрос в друзья
@@ -104,6 +123,7 @@ impl Controller<AppState> for FriendsController {
         .route("/confirm/{id}", post(Self::confirm))
         .route("/cancel/{id}", post(Self::cancel))
         .route("/friends/{id}", get(Self::get_friendship_list))
+        .route("/event/{id}", post(Self::send_event))
         .route("/{id}", get(Self::get_friend_list))
         .route("/{id}", post(Self::add))
         .route("/{id}", delete(Self::remove))
