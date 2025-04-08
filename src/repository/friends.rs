@@ -203,6 +203,20 @@ impl FriendsRepository {
     Ok(results)
   }
 
+  /// Возвращает список запросов в друзья
+  pub fn get_friend_requests(
+    db: &mut Database<Postgres>,
+    user_id: i32
+  ) -> NonJsonHttpResult<Vec<Friendship>> {
+    let results = friendships::table
+      .filter(friendships::user_id.eq(user_id).or(friendships::friend_id.eq(user_id)))
+      .filter(friendships::status.eq(Relationship::Pending))
+      .get_results::<Friendship>(db)
+      .map_err(|_| anyhow!("Друзья не были найдены"))?;
+
+    Ok(results)
+  }
+
   /// Отменяет запрос в друзья
   pub fn cancel(
     db: &mut Database<Postgres>,

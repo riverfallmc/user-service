@@ -48,6 +48,18 @@ impl FriendsController {
     Ok(Json(FriendsRepository::get_friendship_list(&mut db, user_id)?))
   }
 
+  async fn get_friend_requests(
+    State(state): State<AppState>,
+    Path(user_id): Path<i32>,
+    Query(query): Query<UserIdQuery>
+  ) -> HttpResult<Vec<Friendship>> {
+    let mut db = state.postgres.get()?;
+
+    PrivacyService::check_friends_visibility(&mut db, query, user_id)?;
+
+    Ok(Json(FriendsRepository::get_friend_requests(&mut db, user_id)?))
+  }
+
   // внутренний метод
   /// Отправляем ивент всем друзьям
   async fn send_event(
@@ -123,6 +135,7 @@ impl Controller<AppState> for FriendsController {
         .route("/confirm/{id}", post(Self::confirm))
         .route("/cancel/{id}", post(Self::cancel))
         .route("/friends/{id}", get(Self::get_friendship_list))
+        .route("/requests/{id}", get(Self::get_friend_requests))
         .route("/event/{id}", post(Self::send_event))
         .route("/{id}", get(Self::get_friend_list))
         .route("/{id}", post(Self::add))
